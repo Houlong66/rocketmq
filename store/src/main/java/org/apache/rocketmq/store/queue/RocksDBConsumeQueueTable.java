@@ -123,6 +123,50 @@ public class RocksDBConsumeQueueTable {
     }
 
     public List<ByteBuffer> rangeQuery(final String topic, final int queueId, final long startIndex, final int num) throws RocksDBException {
+        if (!this.messageStore.getMessageStoreConfig().isSeekAndReadNWhenRangeQueryRocksdbConsumeQueue()) {
+            return rangeQueryByMultiGet(topic, queueId, startIndex, num);
+        }
+
+        if (num <= 0) {
+            return new ArrayList<>(0);
+        }
+
+        // N=1: use single get (faster than seekAndReadNFlat for single key)
+        if (num == 1) {
+            ByteBuffer result = getCQInKV(topic, queueId, startIndex);
+            List<ByteBuffer> list = new ArrayList<>(1);
+            if (result != null) {
+                list.add(result);
+            }
+            return list;
+        }
+
+        // N>=2: try seekAndReadNFlat (1 JNI call, much faster than multiGet)
+        final byte[] topicBytes = topic.getBytes(StandardCharsets.UTF_8);
+        final ByteBuffer startKeyBB = buildCQKeyByteBuffer(topicBytes, queueId, startIndex);
+        final ByteBuffer upperBoundBB = buildCQKeyByteBuffer(topicBytes, queueId, startIndex + num);
+
+        byte[] flat = this.rocksDBStorage.seekAndReadNCQ(
+            startKeyBB.array(), upperBoundBB.array(), num, CQ_UNIT_SIZE);
+
+        int actualCount = flat.length / CQ_UNIT_SIZE;
+
+        if (actualCount == num) {
+            // Fast path: all entries found, no holes
+            List<ByteBuffer> bbValueList = new ArrayList<>(actualCount);
+            for (int i = 0; i < actualCount; i++) {
+                bbValueList.add(ByteBuffer.wrap(flat, i * CQ_UNIT_SIZE, CQ_UNIT_SIZE));
+            }
+            return bbValueList;
+        }
+
+        // Fallback: actualCount < num, possible holes — use multiGet for compatibility
+        ROCKSDB_LOG.warn("rangeQuery seekAndReadN fallback to multiGet: topic={}, queueId={}, "
+            + "startIndex={}, requested={}, actual={}", topic, queueId, startIndex, num, actualCount);
+        return rangeQueryByMultiGet(topic, queueId, startIndex, num);
+    }
+
+    private List<ByteBuffer> rangeQueryByMultiGet(final String topic, final int queueId, final long startIndex, final int num) throws RocksDBException {
         final byte[] topicBytes = topic.getBytes(StandardCharsets.UTF_8);
         final List<ColumnFamilyHandle> defaultCFHList = new ArrayList<>(num);
         final ByteBuffer[] resultList = new ByteBuffer[num];

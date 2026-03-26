@@ -29,6 +29,7 @@ import org.rocksdb.ReadOptions;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
+import org.rocksdb.SeekAndReadNHelper;
 import org.rocksdb.WriteBatch;
 
 public class ConsumeQueueRocksDBStorage extends AbstractRocksDBStorage {
@@ -109,6 +110,23 @@ public class ConsumeQueueRocksDBStorage extends AbstractRocksDBStorage {
     public List<byte[]> multiGet(final List<ColumnFamilyHandle> cfhList,
         final List<byte[]> keys) throws RocksDBException {
         return multiGet(this.totalOrderReadOptions, cfhList, keys);
+    }
+
+    public byte[] seekAndReadNCQ(byte[] startKey, byte[] upperBound,
+        int count, int valueSize) throws RocksDBException {
+        if (!hold()) {
+            throw new IllegalStateException("rocksDB:" + this + " is not ready");
+        }
+        try {
+            return SeekAndReadNHelper.seekAndReadNFlat(
+                this.db, this.defaultCFHandle, this.totalOrderReadOptions,
+                startKey, upperBound, count, valueSize);
+        } catch (RocksDBException e) {
+            LOGGER.error("seekAndReadNCQ Failed. {}", this.dbPath, e);
+            throw e;
+        } finally {
+            release();
+        }
     }
 
     public void batchPut(final WriteBatch batch) throws RocksDBException {

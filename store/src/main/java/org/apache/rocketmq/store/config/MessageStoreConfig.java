@@ -134,6 +134,8 @@ public class MessageStoreConfig {
 
     private boolean iteratorWhenUseRocksdbConsumeQueue = true;
 
+    private boolean seekAndReadNWhenRangeQueryRocksdbConsumeQueue = true;
+
     // ConsumeQueue file size,default is 30W
     private int mappedFileSizeConsumeQueue = 300000 * ConsumeQueue.CQ_STORE_UNIT_SIZE;
     // enable consume queue ext
@@ -674,6 +676,14 @@ public class MessageStoreConfig {
 
     public void setIteratorWhenUseRocksdbConsumeQueue(boolean iteratorWhenUseRocksdbConsumeQueue) {
         this.iteratorWhenUseRocksdbConsumeQueue = iteratorWhenUseRocksdbConsumeQueue;
+    }
+
+    public boolean isSeekAndReadNWhenRangeQueryRocksdbConsumeQueue() {
+        return seekAndReadNWhenRangeQueryRocksdbConsumeQueue;
+    }
+
+    public void setSeekAndReadNWhenRangeQueryRocksdbConsumeQueue(boolean seekAndReadNWhenRangeQueryRocksdbConsumeQueue) {
+        this.seekAndReadNWhenRangeQueryRocksdbConsumeQueue = seekAndReadNWhenRangeQueryRocksdbConsumeQueue;
     }
 
     public int getMappedFileSizeConsumeQueue() {
